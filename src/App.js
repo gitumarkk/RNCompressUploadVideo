@@ -8,35 +8,27 @@ import { useSelector, useDispatch } from 'react-redux';
 import Video from 'react-native-video';
 
 import UploadButton from './UploadButton';
-import { getVideosApi, step_2_uploadNext } from './redux-store';
+import { getVideosApi, uploadNext } from './redux-store';
 
-const App: () => React$Node = () => {
+function App () {
   const dispatch = useDispatch();
   const [currentVideo, setVideo] = useState(null);
   const videoList = useSelector(state => state.app.videoList);
-  const pendingList = useSelector(state => state.app.pendingList);
-  const current = useSelector(state => state.app.current);
+  const queue = useSelector(state => state.app.queue);
 
   useEffect(() => {
     dispatch(getVideosApi());
-    dispatch(step_2_uploadNext());
+    dispatch(uploadNext(true));
   }, []);
 
   const renderItem = ({ item }) => {
-    const isUploading = (pendingList || []).find(x => x.uuid === item.uuid);
-    let renderStatus;
-    if (current && current.uuid === item.uuid) {
-      renderStatus = "Uploading Processing";
-    } else if (isUploading) {
-      renderStatus = "Upload Pending";
-    }
-
+    const isUploading = (queue || []).find(x => x.uuid === item.uuid);
     return (
       <TouchableOpacity style={styles.itemContainer} onPress={() => setVideo(item)}>
-        { renderStatus ? <Text>{renderStatus} <ActivityIndicator size="small" color="black"/></Text> : null}
+        { isUploading ? <Text>Video Uploading <ActivityIndicator size="small" color="black"/></Text> : null}
         <ImageBackground
           source={{ uri: `data:image/gif;base64,${item.thumbnail}` }}
-          style={{ width: '100%', height: 200 }}
+          style={styles.imageStyle}
           poster={item.thumbnail}
         />
       </TouchableOpacity>
@@ -63,10 +55,8 @@ const App: () => React$Node = () => {
             <View style={styles.modalView}>
               <Video
                 source={{ uri: currentVideo.external_path || currentVideo.local_path }}
-                style={{
-                  width: 300,
-                  height: 300
-                }}
+                style={styles.videoStyle}
+                resizeMode="cover"
               />
               <TouchableOpacity onPress={() => setVideo(null)}><Text>Close</Text></TouchableOpacity>
             </View>
@@ -97,6 +87,14 @@ const styles = StyleSheet.create({
     marginVertical: 10,
     display: 'flex',
     alignItems: 'center'
+  },
+  imageStyle: {
+    width: '100%',
+    height: 200
+  },
+  videoStyle: {
+    width: 300,
+    height: 300
   }
 });
 

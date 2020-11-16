@@ -9,24 +9,24 @@ const SET_CURRENT_STATE = 'SET_CURRENT_STATE';
 const REMOVE_FROM_QUEUE = 'REMOVE_FROM_QUEUE';
 const SET_VIDEO_LIST = 'SET_VIDEO_LIST';
 
-const action_1_addToQueue = (data) => {
+const addToQueue = (data) => {
   return { type: ADD_QUEUE_QUEUE, data }
 }
 
-const action_2_getNextProcessing = (data) => {
+const setCurrent = (data) => {
   return { type: SET_CURRENT_STATE, data }
 };
 
-const action_3_removeFromQueue = (data) => {
+const removeFromQueue = (data) => {
   return { type: REMOVE_FROM_QUEUE, data }
 };
 
-export const action_4_setVideoList = (data) => {
+const setVideoList = (data) => {
   return { type: SET_VIDEO_LIST, data }
 };
 
 const reducerInitialState = {
-  pendingList: [],
+  queue: [],
   current: null,
   videoList: []
 };
@@ -36,7 +36,7 @@ const appReducer = (state = reducerInitialState, action) => {
     case ADD_QUEUE_QUEUE: {
       return {
         ...state,
-        pendingList: [...state.pendingList, action.data] // creating new reference
+        queue: [...state.queue, action.data] // creating new reference
       };
     }
 
@@ -51,7 +51,7 @@ const appReducer = (state = reducerInitialState, action) => {
       return {
         ...state,
         current: null,
-        pendingList: [...state.pendingList].filter(x => x.uuid !== action.data.uuid)
+        queue: [...state.queue].filter(x => x.uuid !== action.data.uuid)
       };
     }
 
@@ -68,22 +68,22 @@ const appReducer = (state = reducerInitialState, action) => {
   }
 };
 
-function step_1_compressVideo(path) {
+function compressVideo(path) {
   return async () => {
     console.log(`begin compressing ${path}`);
-    const origin = await ProcessingManager.getVideoInfo(item.local_path)
+    const origin = await ProcessingManager.getVideoInfo(path);
     const result = await ProcessingManager.compress(path, {
       width: origin.size && origin.size.width / 3,
       height: origin.size && origin.size.height / 3,
       bitrateMultiplier: 7,
       minimumBitrate: 300000
     });
-    const thumbnail =  await ProcessingManager.getPreviewForSecond(path);
+    const thumbnail =  await ProcessingManager.getPreviewForSecond(result.source);
     return { path: result.source, thumbnail };
   };
 }
 
-function step_2_uploadVideo(file, data) {
+function uploadVideo(file, data) {
   return async () => {
     console.log(`begin uploading ${data.uuid}`)
     const reference = storage().ref(`/videos/${data.uuid}.mp4`);
@@ -93,33 +93,30 @@ function step_2_uploadVideo(file, data) {
   };
 }
 
-export const step_2_uploadNext = () => {
+export const uploadNext = (unlock) => {
   return async (dispatch, getState) => {
     const state = getState();
-    const pendingList = state.app.pendingList;
+    const queue = state.app.queue;
     const current = state.app.current;
 
-    if(current || pendingList.length === 0) return ;
-    const next = pendingList[0];
-    dispatch(action_2_getNextProcessing(next));
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    const file = await dispatch(step_1_compressVideo(next.local_path));
-    await dispatch(step_2_uploadVideo(file, next));
-    dispatch(action_3_removeFromQueue(next));
+    if (queue.length === 0 || (current && !unlock)) return;
+    const next = (current && unlock) ? current : queue[0];
+    dispatch(setCurrent(next));
+    const file = await dispatch(compressVideo(next.local_path));
+    await dispatch(uploadVideo(file, next));
+    dispatch(removeFromQueue(next));
     dispatch(getVideosApi());
-    dispatch(step_2_uploadNext());
-
+    dispatch(uploadNext());
   };
 };
 
 export const fileUpload = (data) => {
   return async (dispatch) => {
-    // await mockApi.reset();
-    // const thumbnail =  await ProcessingManager.getPreviewForSecond(data.local_path);
-    // data.thumbnail = thumbnail;
+    // await mockApi.reset(); // Uncomment this to clear async storage if full
+    data.thumbnail =  await ProcessingManager.getPreviewForSecond(data.local_path);
     const resp = await mockApi.post(data);
-    dispatch(action_1_addToQueue({ ...resp }));
-    dispatch(step_2_uploadNext());
+    dispatch(addToQueue({ ...resp }));
+    dispatch(uploadNext());
     dispatch(getVideosApi());
   };
 };
@@ -127,7 +124,7 @@ export const fileUpload = (data) => {
 export const getVideosApi = () => {
   return async (dispatch) => {
     const list = await mockApi.getList();
-    dispatch(action_4_setVideoList(list))
+    dispatch(setVideoList(list))
   };
 };
 

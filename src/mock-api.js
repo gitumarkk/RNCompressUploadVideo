@@ -9,14 +9,12 @@ export const getItem = async (uuid) => {
 export const getList = async () => {
   const keys = await AsyncStorage.getAllKeys()
   const list = await AsyncStorage.multiGet(keys)
-  return (list || []).map(x => JSON.parse(x[1]));
+  return (list || []).map(x => x[1] ? JSON.parse(x[1]) : {});
 }
 
 export const post = async (data) => {
-  const keys = await AsyncStorage.getAllKeys();
   const entry = {
     ...data,
-    index: (keys || []).length,
     uuid: Math.random().toString(36).substring(7)
   }
   await AsyncStorage.setItem(entry.uuid, JSON.stringify(entry));
